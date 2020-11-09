@@ -25,6 +25,10 @@ CDirect2DWithImageLUTDlg::CDirect2DWithImageLUTDlg(CWnd* pParent /*=nullptr*/)
 void CDirect2DWithImageLUTDlg::DoDataExchange(CDataExchange* pDX)
 {
    DDX_Control(pDX, IDC_STATIC_CTRL, m_ctrlDirect2DImageCtrl);
+   DDX_Control(pDX, IDC_BTN_GOLDEN_EFFECT, m_btnGolden);
+   DDX_Control(pDX, IDC_BTN_NOIR_EFFECT, m_btnNoir);
+   DDX_Control(pDX, IDC_BTN_GOLDEN_NOIR_EFFECT, m_btnGoldenNoir);
+
 	CDialogEx::DoDataExchange(pDX);
 }
 
@@ -32,6 +36,9 @@ BEGIN_MESSAGE_MAP(CDirect2DWithImageLUTDlg, CDialogEx)
 	ON_WM_PAINT()
 	ON_WM_QUERYDRAGICON()
    ON_WM_SIZE()
+   ON_BN_CLICKED(IDC_BTN_GOLDEN_EFFECT, OnBnClickedGoldenEffect)
+   ON_BN_CLICKED(IDC_BTN_NOIR_EFFECT, OnBnClickedNoirEffect)
+   ON_BN_CLICKED(IDC_BTN_GOLDEN_NOIR_EFFECT, OnBnClickedGoldenNoirEffect)
 END_MESSAGE_MAP()
 
 
@@ -47,7 +54,7 @@ BOOL CDirect2DWithImageLUTDlg::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
 	// TODO: Add extra initialization here
-   MoveWindow(CRect(0, 0, 840, 530));
+   MoveWindow(CRect(0, 0, 840, 590));
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -104,5 +111,34 @@ void CDirect2DWithImageLUTDlg::OnSize(UINT nType, int cx, int cy)
    rcImageCtrl.bottom = rcImageCtrl.top + 450;
    rcImageCtrl.right = rcImageCtrl.left + 800;
    m_ctrlDirect2DImageCtrl.MoveWindow(rcImageCtrl);
+
+   CRect rcBtn;
+   rcBtn.top = rcImageCtrl.bottom + 20;
+   rcBtn.bottom = rcBtn.top + 20;
+   rcBtn.left = rcClient.left + 130;
+   rcBtn.right = rcBtn.left + 80;
+   m_btnGolden.MoveWindow(rcBtn);
+
+   rcBtn.left = rcBtn.right + 130;
+   rcBtn.right = rcBtn.left + 80;
+   m_btnNoir.MoveWindow(rcBtn);
+
+   rcBtn.left = rcBtn.right + 130;
+   rcBtn.right = rcBtn.left + 160;
+   m_btnGoldenNoir.MoveWindow(rcBtn);
 }
 
+void CDirect2DWithImageLUTDlg::OnBnClickedGoldenEffect()
+{
+   m_ctrlDirect2DImageCtrl.SetEffect(TRUE, FALSE);
+}
+
+void CDirect2DWithImageLUTDlg::OnBnClickedNoirEffect()
+{
+   m_ctrlDirect2DImageCtrl.SetEffect(FALSE, TRUE);
+}
+
+void CDirect2DWithImageLUTDlg::OnBnClickedGoldenNoirEffect()
+{
+   m_ctrlDirect2DImageCtrl.SetEffect(TRUE, TRUE);
+}

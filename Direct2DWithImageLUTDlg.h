@@ -35,4 +35,13 @@ protected:
 
 private:
    CDirect2DImageCtrl                m_ctrlDirect2DImageCtrl;
+
+   CButton                           m_btnGolden;
+   CButton                           m_btnNoir;
+   CButton                           m_btnGoldenNoir;
+
+public:
+   afx_msg void OnBnClickedGoldenEffect();
+   afx_msg void OnBnClickedNoirEffect();
+   afx_msg void OnBnClickedGoldenNoirEffect();
 };

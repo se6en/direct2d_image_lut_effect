@@ -18,3 +18,14 @@ Color will not change if we use this LUT image because this is the original colo
 ![square_detal](https://raw.githubusercontent.com/se6en/direct2d_image_lut_effect/master/readme_resources/square_detail.png).
 ### DirectImageCtrl (.h and .cpp)
 Create direct2d resources and draw the effect here.
+
+# load_effect_dynamic
+---
+#11/9/2020
+---
+Show how to load LUT images as effect dynamically.
+---
+## Effect Resources
+Used to save all the effect resource files. Application will load effect from this folder while initializing. Each ini file should be related to one png file.
+### Golden.ini and Noir.ini
+Record effect name, GUID and LUT image. Name was used to show the effect name if necessary. GUID was used to distinguish effect. The image file was LUT image.
