@@ -1,8 +1,17 @@
 #pragma once
 
 #include "CustomEffect.h"
+#include <vector>
 
 using namespace Microsoft::WRL;
+
+struct Direct2DCustomEffect
+{
+   CString               strName;
+   GUID                  guidEffect;
+   CString               strLUTImageFilePath;
+   ComPtr<ID2D1Bitmap1>  pD2DLUTImage;
+};
 
 class CDirect2DImageCtrl : public CStatic
 {
@@ -19,9 +28,18 @@ public:
 
    DECLARE_MESSAGE_MAP()
 
+public:
+   void SetEffect(BOOL bGolden, BOOL bNoir);
+
 private:
+   void LoadDirect2DEffect();
+   void LoadDirect2DEffectFromFile(CString strFilePath);
+
    void CreateDeviceIndependentResources();
-   void CreateDeviceResources();
+
+   CString GetParamterValue(CString strSection, CString strLable, CString strFilePath);
+
+   void UpdateEffect();
 
 private:
    ComPtr<ID2D1Factory1>                     m_pD2DFactory;
@@ -41,8 +59,13 @@ private:
    ComPtr<IWICFormatConverter>               m_wicLUTFormatConverter;
    ComPtr<ID2D1Bitmap1>                      m_pD2DLUTImage;
 
+   std::vector<Direct2DCustomEffect>         m_vecCustomEffect;
+
    ComPtr<ID2D1Effect>                       m_customEffect;
 
    D2D1_SIZE_U                               m_uszImage;
    D2D1_SIZE_U                               m_uszLUT;
+
+   BOOL                                      m_bUseGoldenEffect;
+   BOOL                                      m_bUseNoirEffect;
 };

@@ -1,11 +1,27 @@
 #include "stdafx.h"
 #include "Direct2DImageCtrl.h"
+#include <algorithm>
+
+#define DIRECT2D_EFFECT_FILES_FOLDER             _T("Effect Resources")
+
+#define PARAMETER_SECTION                        _T("EffectParameter")
+#define PARAMETER_NAME                           _T("IDS_EFFECT_NAME")
+#define PARAMETER_GUID                           _T("IDS_EFFECT_GUID")
+#define PARAMETER_LUT_IMAGE                      _T("IDS_EFFECT_LUT_IMAGE")
+
+#define GOLDEN_GUID                              _T("FBBDD398-21AB-4005-9A7F-5C41287049D8")
+#define NOIR_GUID                                _T("5CB857BE-5E9F-43EC-B39B-46EA7A0579CE")
+
+#define MAX_LENGTH  512
 
 IMPLEMENT_DYNAMIC(CDirect2DImageCtrl, CStatic)
 
 CDirect2DImageCtrl::CDirect2DImageCtrl()
 {
    m_customEffect = nullptr;
+
+   m_bUseGoldenEffect = FALSE;
+   m_bUseNoirEffect = FALSE;
 }
 
 CDirect2DImageCtrl::~CDirect2DImageCtrl()
@@ -20,9 +36,106 @@ END_MESSAGE_MAP()
 
 void CDirect2DImageCtrl::PreSubclassWindow()
 {
+   LoadDirect2DEffect();
+
    CreateDeviceIndependentResources();
 
    CStatic::PreSubclassWindow();
+}
+
+void CDirect2DImageCtrl::SetEffect(BOOL bGolden, BOOL bNoir)
+{
+   m_bUseGoldenEffect = bGolden;
+   m_bUseNoirEffect = bNoir;
+
+   UpdateEffect();
+}
+
+void CDirect2DImageCtrl::LoadDirect2DEffect()
+{
+   TCHAR szAppPath[MAX_PATH + 1];
+
+   GetModuleFileName(NULL, szAppPath, sizeof(szAppPath) / sizeof(TCHAR));
+
+   CString strEffectPath = szAppPath;
+
+   if (strEffectPath.IsEmpty())
+   {
+      return;
+   }
+
+   int nPos = strEffectPath.ReverseFind('\\');
+   strEffectPath = strEffectPath.Left(nPos);
+
+   nPos= strEffectPath.ReverseFind('\\');
+   strEffectPath = strEffectPath.Left(nPos);
+   
+   nPos = strEffectPath.ReverseFind('\\');
+   strEffectPath = strEffectPath.Left(nPos);
+
+   strEffectPath += _T("\\");
+   strEffectPath += DIRECT2D_EFFECT_FILES_FOLDER;
+
+   if (!PathIsDirectory(strEffectPath))
+   {
+      return;
+   }
+
+   strEffectPath += _T("\\*.ini");
+
+   CFileFind Finder;
+   BOOL bFound = Finder.FindFile(strEffectPath);
+   while (bFound)
+   {
+      bFound = Finder.FindNextFileW();
+      CString strFileName = Finder.GetFilePath();
+
+      LoadDirect2DEffectFromFile(strFileName);
+   }
+   Finder.Close();
+}
+
+void CDirect2DImageCtrl::LoadDirect2DEffectFromFile(CString strFilePath)
+{
+   Direct2DCustomEffect struEffect;
+
+   CString strName = GetParamterValue(PARAMETER_SECTION, PARAMETER_NAME, strFilePath);
+
+   if (strName.IsEmpty())
+   {
+      return;
+   }
+
+   struEffect.strName = strName;
+
+   CString strEffectGUID = GetParamterValue(PARAMETER_SECTION, PARAMETER_GUID, strFilePath);
+
+   if (strEffectGUID.IsEmpty())
+   {
+      return;
+   }
+
+   RPC_STATUS status = UuidFromString((RPC_WSTR)(LPCTSTR)strEffectGUID, &struEffect.guidEffect);
+
+   if (status != RPC_S_OK)
+   {
+      return;
+   }
+
+   int nPos = strFilePath.ReverseFind('\\');
+   CString strFolder = strFilePath.Left(nPos);
+   strFolder += _T("\\");
+
+   CString strLUTImage = GetParamterValue(PARAMETER_SECTION, PARAMETER_LUT_IMAGE, strFilePath);
+
+   if (strLUTImage.IsEmpty())
+   {
+      return;
+   }
+
+   struEffect.strLUTImageFilePath = strFolder + strLUTImage;
+
+   m_vecCustomEffect.push_back(struEffect);
 }
 
 void CDirect2DImageCtrl::CreateDeviceIndependentResources()
@@ -183,75 +296,166 @@ void CDirect2DImageCtrl::CreateDeviceIndependentResources()
    }
 
    // LUT
-   if (SUCCEEDED(hr))
+   for (int i = 0; i < m_vecCustomEffect.size(); i++)
    {
       hr = m_wicFactory->CreateDecoderFromFilename(
-         L"Golden.png",
+        m_vecCustomEffect[i].strLUTImageFilePath,
          nullptr,
          GENERIC_READ,
          WICDecodeMetadataCacheOnDemand,
          &m_wicLUTBitmapDecoder);
-   }
 
-   if (SUCCEEDED(hr))
-   {
-      hr = m_wicLUTBitmapDecoder->GetFrame(0, &m_wicLUTBitmapFrameDecoder);
-   }
+      if (SUCCEEDED(hr))
+      {
+         hr = m_wicLUTBitmapDecoder->GetFrame(0, &m_wicLUTBitmapFrameDecoder);
+      }
 
-   if (SUCCEEDED(hr))
-   {
-      hr = m_wicLUTBitmapFrameDecoder->GetPixelFormat(&pPixelFormat);
+      if (SUCCEEDED(hr))
+      {
+         hr = m_wicLUTBitmapFrameDecoder->GetPixelFormat(&pPixelFormat);
 
-      hr = m_wicFactory->CreateFormatConverter(&m_wicLUTFormatConverter);
-   }
+         hr = m_wicFactory->CreateFormatConverter(&m_wicLUTFormatConverter);
+      }
 
-   if (SUCCEEDED(hr))
-   {
-      hr = m_wicLUTFormatConverter->Initialize(
-         m_wicLUTBitmapFrameDecoder.Get(),
-         GUID_WICPixelFormat32bppPBGRA,
-         WICBitmapDitherTypeNone,
-         nullptr,
-         0.0f,
-         WICBitmapPaletteTypeCustom
-      );
-   }
+      if (SUCCEEDED(hr))
+      {
+         hr = m_wicLUTFormatConverter->Initialize(
+            m_wicLUTBitmapFrameDecoder.Get(),
+            GUID_WICPixelFormat32bppPBGRA,
+            WICBitmapDitherTypeNone,
+            nullptr,
+            0.0f,
+            WICBitmapPaletteTypeCustom
+         );
+      }
 
-   if (SUCCEEDED(hr))
-   {
-      hr = m_pD2DContext->CreateBitmapFromWicBitmap(m_wicLUTFormatConverter.Get(), NULL, &m_pD2DLUTImage);
+      if (SUCCEEDED(hr))
+      {
+         hr = m_pD2DContext->CreateBitmapFromWicBitmap(m_wicLUTFormatConverter.Get(), NULL, &m_vecCustomEffect[i].pD2DLUTImage);
 
-      hr = m_wicLUTFormatConverter->GetSize(&width, &height);
+         hr = m_wicLUTFormatConverter->GetSize(&width, &height);
 
-      m_uszLUT = D2D1::SizeU(width, height);
+         m_uszLUT = D2D1::SizeU(width, height);
+      }
    }
 
    CoUninitialize();
 }
 
-void CDirect2DImageCtrl::CreateDeviceResources()
+CString CDirect2DImageCtrl::GetParamterValue(CString strSection, CString strLable, CString strFilePath)
 {
-   if (m_customEffect != nullptr)
+   CString strFound;
+
+   GetPrivateProfileString(strSection, strLable, _T(""), strFound.GetBuffer(MAX_LENGTH), MAX_LENGTH, strFilePath);
+   strFound.ReleaseBuffer();
+
+   return strFound;
+}
+
+void CDirect2DImageCtrl::UpdateEffect()
+{
+   if (!m_bUseGoldenEffect && !m_bUseNoirEffect)
    {
-      return;
+      m_customEffect = nullptr;
+   }
+   else if (m_bUseGoldenEffect && m_bUseNoirEffect)
+   {
+      // create golden
+      HRESULT hr = CustomEffect::Register(m_pD2DFactory.Get());
+
+      ComPtr<ID2D1Effect> pGoldenEffect = nullptr;
+
+      if (SUCCEEDED(hr))
+      {
+         hr = m_pD2DContext->CreateEffect(CLSID_CustomEffect, &pGoldenEffect);
+      }
+
+      if (SUCCEEDED(hr))
+      {
+         GUID guidGolden;
+         UuidFromString((RPC_WSTR)(LPCTSTR)GOLDEN_GUID, &guidGolden);
+         
+         auto pEffect = std::find_if(m_vecCustomEffect.begin(), m_vecCustomEffect.end(), [guidGolden](Direct2DCustomEffect& effectItem) {return effectItem.guidEffect == guidGolden; });
+         if (pEffect != m_vecCustomEffect.end())
+         {
+            UINT32 nInputCount = pGoldenEffect->GetInputCount();
+
+            pGoldenEffect->SetInput(0, m_pD2DImage.Get());
+            pGoldenEffect->SetInput(1, pEffect->pD2DLUTImage.Get());
+         }
+      }
+
+      if (SUCCEEDED(hr))
+      {
+         hr = m_pD2DContext->CreateEffect(CLSID_CustomEffect, &m_customEffect);
+      }
+
+      if (SUCCEEDED(hr))
+      {
+         GUID noirGolden;
+         UuidFromString((RPC_WSTR)(LPCTSTR)NOIR_GUID, &noirGolden);
+
+         auto pEffect = std::find_if(m_vecCustomEffect.begin(), m_vecCustomEffect.end(), [noirGolden](Direct2DCustomEffect& effectItem) {return effectItem.guidEffect == noirGolden; });
+         if (pEffect != m_vecCustomEffect.end())
+         {
+            UINT32 nInputCount = m_customEffect->GetInputCount();
+
+            m_customEffect->SetInputEffect(0, pGoldenEffect.Get());
+            m_customEffect->SetInput(1, pEffect->pD2DLUTImage.Get());
+         }
+      }
+   }
+   else if (m_bUseGoldenEffect)
+   {
+      HRESULT hr = CustomEffect::Register(m_pD2DFactory.Get());
+
+      if (SUCCEEDED(hr))
+      {
+         hr = m_pD2DContext->CreateEffect(CLSID_CustomEffect, &m_customEffect);
+      }
+
+      if (SUCCEEDED(hr))
+      {
+         GUID guidGolden;
+         UuidFromString((RPC_WSTR)(LPCTSTR)GOLDEN_GUID, &guidGolden);
+
+         auto pEffect = std::find_if(m_vecCustomEffect.begin(), m_vecCustomEffect.end(), [guidGolden](Direct2DCustomEffect& effectItem) {return effectItem.guidEffect == guidGolden; });
+         if (pEffect != m_vecCustomEffect.end())
+         {
+            UINT32 nInputCount = m_customEffect->GetInputCount();
+
+            m_customEffect->SetInput(0, m_pD2DImage.Get());
+            m_customEffect->SetInput(1, pEffect->pD2DLUTImage.Get());
+         }
+      }
+   }
+   else if (m_bUseNoirEffect)
+   {
+      HRESULT hr = CustomEffect::Register(m_pD2DFactory.Get());
+
+      if (SUCCEEDED(hr))
+      {
+         hr = m_pD2DContext->CreateEffect(CLSID_CustomEffect, &m_customEffect);
+      }
+
+      if (SUCCEEDED(hr))
+      {
+         GUID noirGolden;
+         UuidFromString((RPC_WSTR)(LPCTSTR)NOIR_GUID, &noirGolden);
+
+         auto pEffect = std::find_if(m_vecCustomEffect.begin(), m_vecCustomEffect.end(), [noirGolden](Direct2DCustomEffect& effectItem) {return effectItem.guidEffect == noirGolden; });
+         if (pEffect != m_vecCustomEffect.end())
+         {
+            UINT32 nInputCount = m_customEffect->GetInputCount();
+
+            m_customEffect->SetInput(0, m_pD2DImage.Get());
+            m_customEffect->SetInput(1, pEffect->pD2DLUTImage.Get());
+         }
+      }
    }
 
-
-   HRESULT hr = CustomEffect::Register(m_pD2DFactory.Get());
-
-   if (SUCCEEDED(hr))
-   {
-      hr = m_pD2DContext->CreateEffect(CLSID_CustomEffect, &m_customEffect);
-   }
-
-   if (SUCCEEDED(hr))
-   {
-      UINT32 nInputCount = m_customEffect->GetInputCount();
-
-      m_customEffect->SetInput(0, m_pD2DImage.Get());
-      m_customEffect->SetInput(1, m_pD2DLUTImage.Get());
-   }
-
+   Invalidate();
+   UpdateWindow();
 }
 
 void CDirect2DImageCtrl::OnSize(UINT nType, int cx, int cy)
@@ -337,8 +541,6 @@ void CDirect2DImageCtrl::OnPaint()
 {
    CPaintDC dc(this);
 
-   CreateDeviceResources();
-
    CRect rcClient;
    GetClientRect(rcClient);
 
@@ -352,6 +554,12 @@ void CDirect2DImageCtrl::OnPaint()
    if (m_customEffect != nullptr)
    {
       m_pD2DContext->DrawImage(m_customEffect.Get());
+   }
+   else
+   {
+      D2D1_RECT_F rcDst = D2D1::RectF(0.F, 0.F, (FLOAT)rcClient.Width(), (FLOAT)rcClient.Height());
+
+      m_pD2DContext->DrawBitmap(m_pD2DImage.Get(), rcDst);
    }
 
    // We ignore D2DERR_RECREATE_TARGET here. This error indicates that the device
